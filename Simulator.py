@@ -5,6 +5,9 @@ import random
 import matplotlib.pyplot as plt
 
 number_of_houses=5
+#tokens per house
+tokens=[1000 for i in range(0,number_of_houses)]
+
 #this likely depends on number of batteries
 max_storage_per_house=[100 for i in range(0,number_of_houses)]
 #track local storage of each house
@@ -13,7 +16,15 @@ current_household_storage=[0 for i in range(0,number_of_houses)]
 base_energy_usages=[5,6,7,8,9]
 #basic peak usage adjustment
 peak_usage_add_on=[5,4,3,2,1]
-peak_hours=[6,7,8,17,18,19]
+peak_usage_hours=[6,7,8,17,18,19]
+
+
+# baseline production of each house
+base_energy_production=[2,2,2,3,3]
+#basic peak usage adjustment
+peak_production_add_on=[19,20,20,90,40]
+peak_production_hours=[11,12,13,14,15]
+
 
 
 #the prices to buy energy locally and from the grid
@@ -33,23 +44,33 @@ central_energy_contributions=[0 for i in range(0,number_of_houses)]
 
 
 def simulate():
-    number_of_days=30
+    number_of_days=7
     time_slots_per_day=24
 
     for t in range(0, number_of_days*time_slots_per_day):
         for house in range(0,number_of_houses):
             usage=get_usage(house, t)
+            production=get_production(house,t)
+            house_simulation_1_time_unit(house,production,usage)
+    return
 
 def get_usage(house_number, time):
     hour=time%24
     usage=base_energy_usages[house_number]
-    if hour in peak_hours:
+    if hour in peak_usage_hours:
         return usage+peak_usage_add_on[house_number]
     return usage
 
+def get_production(house_number, time):
+    hour=time%24
+    production=base_energy_production[house_number]
+    if hour in peak_production_hours:
+        return production+peak_production_add_on[house_number]
+    return production
+
 
 #simulate a house for a particular time period
-def house(house_number, production,usage, tokens):
+def house_simulation_1_time_unit(house_number,production,usage,):
     net_usage=usage-production
 
     #usage is greater than production for this time period
@@ -57,7 +78,7 @@ def house(house_number, production,usage, tokens):
 
         #need to buy energy
         if net_usage>current_household_storage[house_number]:
-            tokens-=market_buy(net_usage,house_number)
+            tokens[house_number]=tokens[house_number]-market_buy(net_usage,house_number)
             current_household_storage[house_number]=0
         
         #house has enough energy
@@ -67,11 +88,13 @@ def house(house_number, production,usage, tokens):
     #house is net producer for this time period
     else:
         available_central_capacity=central_energy_capacity-sum(central_energy_contributions)
+        contribution_amount=0
         # there is capacity to add to central storage 
         if available_central_capacity>0:
             contribution_amount=min(-net_usage,available_central_capacity)
-        #add contribution amount to central storage
-        market_sell(contribution_amount, house_number)
+            #add contribution amount to central storage
+            market_sell(contribution_amount, house_number)
+        
         #add remaining energy to house storage
         current_household_storage[house_number]=min(current_household_storage[house_number]+(-net_usage-contribution_amount),max_storage_per_house[house_number])
 
@@ -96,7 +119,7 @@ def market_buy(energy_to_buy,house_number):
     #this means the house has more existing contributions than energy to buy
     # return energy at 0 cost
     else:
-        central_energy_contributions[house_number]-=energy_to_buy
+        central_energy_contributions[house_number]=central_energy_contributions[house_number]-energy_to_buy
         return 0
     #not enough local energy
     # house needs to buy from mains
@@ -109,14 +132,20 @@ def market_buy(energy_to_buy,house_number):
         pct_to_buy=energy_to_buy/local_storage_total
     
     # add the cost of buying local energy
-    cost+=energy_to_buy*energy_price_buy_local
+    cost=cost+energy_to_buy*energy_price_buy_local
     #discount the contributions of each house to local storage
     for i in range(0,number_of_houses):
+        #pay houses who contributed to energy being bought
+        tokens[house_number]+=central_energy_contributions[i]*pct_to_buy*energy_price_buy_local
+        #remove that energy from central supply
         central_energy_contributions[i]=central_energy_contributions[i]*(1-pct_to_buy)
     
     return cost
 
 def market_sell(energy_to_sell, house_number):
     #add the energy to the local grid
+    central_energy_contributions[house_number]=central_energy_contributions[house_number]+(energy_to_sell*(1-efficiency_coeeficient))
+    return
 
-    central_energy_contributions[house_number]+=(energy_to_sell*(1-efficiency_coeeficient))
+simulate() 
+print("tokens: ",tokens,"Current storage:",current_household_storage, "central storage contributions", central_energy_contributions )
