@@ -23,8 +23,6 @@ peak_usage_hours=[6,7,8,17,18,19]
 peak_usage_multiplier=3
 base_hourly_energy_usage=[i/(365*(24+(peak_usage_multiplier-1)*len(peak_usage_hours))) for i in annual_energy_usages]
 print(base_hourly_energy_usage)
-#basic peak usage adjustment
-
 
 
 # Solar power variables
@@ -187,4 +185,6 @@ def market_sell(energy_to_sell, house_number):
 
 max_daylight_hours=get_max_daylight_hours()
 simulate() 
-print("tokens: ",tokens,"Current storage:",current_household_storage, "central storage contributions", central_energy_contributions )
+print("tokens: ",tokens)
+print("Current storage:",current_household_storage )
+print( "central storage contributions", central_energy_contributions )
