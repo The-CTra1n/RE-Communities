@@ -19,19 +19,22 @@ max_storage_per_house=[100 for i in range(0,number_of_houses)]
 current_household_storage=[0 for i in range(0,number_of_houses)]
 # total annual usages of each house in kWh
 annual_energy_usages=[4000,4500,5000,6500,7000]
+
+#hours in which peak usage occurs
 peak_usage_hours=[6,7,8,17,18,19]
 peak_usage_multiplier=3
 base_hourly_energy_usage=[i/(365*(24+(peak_usage_multiplier-1)*len(peak_usage_hours))) for i in annual_energy_usages]
-print(base_hourly_energy_usage)
-
+print("base energy usages", base_hourly_energy_usage)
 
 # Solar power variables
 
 # baseline production of each house
 sunlight=[0 for i in range(0,time_slots_per_day)]
-# the amount of watts produced at maximum sun power
+# the amount of watts produced per solar panel at maximum sun power
 kilowatts_per_solar_panel=0.3
+
 solar_panels_per_house=[12,12, 12, 15, 18]
+#pct of sun power converted to energy
 solar_panel_efficiency=0.9
 # sense check, assuming avg of 6hrs sun per day
 expected_annual_production=[solar_panel_efficiency*solar_panels_per_house[i]*kilowatts_per_solar_panel*6*365 for i in range(0,number_of_houses)]
@@ -41,11 +44,13 @@ print("annual consumption", annual_energy_usages)
 energy_price_buy_local=1
 energy_price_buy_Mains=10
 
+# ASK PORTUGESE
+# ASK PORTUGESE
+# ASK PORTUGESE
 #the amount of energy lost from storage per time unit
-energy_decay=0.1
-
+energy_decay=0
 #the amount of energy lost transporting energy from house to local storage
-efficiency_coeeficient=0.1
+efficiency_coeeficient=0
 
 #central energy capacity
 central_energy_capacity=250
