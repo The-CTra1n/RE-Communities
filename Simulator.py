@@ -23,7 +23,7 @@ sunlight=[0 for i in range(0,time_slots_per_day)]
 # the amount of watts produced per solar panel at maximum sun power
 kilowatts_per_solar_panel=0.3
 
-def simulate():
+def simulate(cartel_of_neighbours):
     #tokens per house
     tokens=[0 for i in range(0,number_of_houses+1)]
 
@@ -43,8 +43,8 @@ def simulate():
 
     # in kWhs
     # #this depends on number of batteries
-    # # set to 0, but ask PORTUGESE
-    house_max_storage=0
+    # # set abritrarily, ask PORTUGESE
+    house_max_storage=5
     current_household_storage=[0 for i in range(0,number_of_houses)]
 
     average_energy_usage_per_house=4000
@@ -77,7 +77,7 @@ def simulate():
             adjusted_house=(house+priority_modifier)%number_of_houses
             usage=get_usage(adjusted_house, t,base_hourly_energy_usage)
             production=get_house_production(adjusted_house,t,effective_solar_panels_per_house)
-            current_household_storage, tokens, central_energy_contributions,energy_price_local=house_simulation_1_time_unit(adjusted_house,production,usage,tokens,current_household_storage,central_energy_capacity,central_energy_contributions,energy_price_local,energy_price_external_grid,max_storage_per_house)
+            current_household_storage, tokens, central_energy_contributions,energy_price_local=house_simulation_1_time_unit(adjusted_house,production,usage,tokens,current_household_storage,central_energy_capacity,central_energy_contributions,energy_price_local,energy_price_external_grid,max_storage_per_house,cartel_of_neighbours)
         central_energy_contributions,current_household_storage=decay_storage(central_energy_contributions,current_household_storage,max_storage_per_house,energy_decay_multiplier,central_energy_capacity)
     
     print("tokens: ",tokens)
@@ -174,15 +174,22 @@ def simulate_central_production(time, central_energy_capacity,central_energy_con
     return central_energy_contributions
 
 #simulate a house for a particular time period
-def house_simulation_1_time_unit(house_number,production,usage,tokens,current_household_storage,central_energy_capacity,central_energy_contributions,energy_price_local,energy_price_external_grid,max_storage_per_house):
+def house_simulation_1_time_unit(house_number,production,usage,tokens,current_household_storage,central_energy_capacity,central_energy_contributions,energy_price_local,energy_price_external_grid,max_storage_per_house,cartel_of_neighbours):
     net_usage=usage-production
     #usage is greater than production for this time period
     if net_usage>0:
         #need to buy energy
         if net_usage>current_household_storage[house_number]:
-            tokens, central_energy_contributions,energy_price_local=market_buy(net_usage,house_number,tokens, central_energy_contributions,energy_price_local,energy_price_external_grid)
-
+            net_usage=net_usage-current_household_storage[house_number]
             current_household_storage[house_number]=0
+            if house_number in cartel_of_neighbours:
+                for seller in cartel_of_neighbours:
+                    if current_household_storage[seller]>0:
+                        net_usage, tokens, current_household_storage=neighbour_buy(net_usage,house_number,i,tokens,energy_price_local,current_household_storage)
+            
+            tokens, central_energy_contributions,energy_price_local=market_buy(net_usage-current_household_storage[house_number],house_number,tokens, central_energy_contributions,energy_price_local,energy_price_external_grid)
+
+            
         #house has enough energy
         else:
             current_household_storage[house_number]-=net_usage
@@ -244,6 +251,24 @@ def market_buy(energy_to_buy,house_number,tokens, central_energy_contributions,e
     
     return tokens, central_energy_contributions,energy_price_local
 
+
+#allows neighbours to buy from each other directly
+def neighbour_buy(energy_to_buy,house_buying, house_selling,tokens, energy_price_local,current_household_storage):
+    # buyer has more tokens than seller has in storage
+    if energy_to_buy>current_household_storage[house_selling]:
+        energy_to_buy=energy_to_buy-current_household_storage[house_selling]
+        tokens[house_buying]=tokens[house_buying]-(current_household_storage[house_selling]*energy_price_local)
+        tokens[house_selling]=tokens[house_selling]+(current_household_storage[house_selling]*energy_price_local)
+        current_household_storage[house_selling]=0
+        
+    #seller has sufficient tokens
+    else:
+        current_household_storage[house_selling]=current_household_storage[house_selling]-energy_to_buy
+        tokens[house_buying]=tokens[house_buying]-(energy_to_buy*energy_price_local)
+        tokens[house_selling]=tokens[house_selling]+(energy_to_buy*energy_price_local)
+        energy_to_buy=0
+    return energy_to_buy, tokens, current_household_storage
+    
 def market_sell(energy_to_sell, house_number,central_energy_contributions,energy_price_local):
     #add the energy to the local grid
     #checks for contribution amount are done in house_simulation_1_time_unit() function
@@ -251,6 +276,9 @@ def market_sell(energy_to_sell, house_number,central_energy_contributions,energy
     return central_energy_contributions, energy_price_local
 
 max_daylight_hours=get_max_daylight_hours()
+
+#specify a set of neighbours who agree to swap energy between them before selling to market
+cartel_of_neighbours=[0,1]
 for i in range(0,number_of_simulations):
-    simulate() 
+    simulate(cartel_of_neighbours) 
 
