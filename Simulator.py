@@ -1,74 +1,119 @@
-
 import pandas as pd
 import math
 import random
 import matplotlib.pyplot as plt
 
+number_of_simulations=10
+
 number_of_houses=5
+number_of_days=365
 time_slots_per_day=24
 #BArcelona latitude
 latitiude=41.22
 #will be used to calculate strength of sun
 max_daylight_hours=0
-#tokens per house
-tokens=[1000 for i in range(0,number_of_houses)]
-
-#this likely depends on number of batteries
-max_storage_per_house=[100 for i in range(0,number_of_houses)]
-#track local storage of each house
-current_household_storage=[0 for i in range(0,number_of_houses)]
-# total annual usages of each house in kWh
-annual_energy_usages=[4000,4500,5000,6500,7000]
 
 #hours in which peak usage occurs
 peak_usage_hours=[6,7,8,17,18,19]
 peak_usage_multiplier=3
-base_hourly_energy_usage=[i/(365*(24+(peak_usage_multiplier-1)*len(peak_usage_hours))) for i in annual_energy_usages]
-print("base energy usages", base_hourly_energy_usage)
 
 # Solar power variables
-
 # baseline production of each house
 sunlight=[0 for i in range(0,time_slots_per_day)]
 # the amount of watts produced per solar panel at maximum sun power
 kilowatts_per_solar_panel=0.3
 
-solar_panels_per_house=[12,12, 12, 15, 18]
-#pct of sun power converted to energy
-solar_panel_efficiency=0.9
-# sense check, assuming avg of 6hrs sun per day
-expected_annual_production=[solar_panel_efficiency*solar_panels_per_house[i]*kilowatts_per_solar_panel*6*365 for i in range(0,number_of_houses)]
-print("sense check, annual production assuming avg of 6hrs sun per day",expected_annual_production)
-print("annual consumption", annual_energy_usages)
-#the prices to buy energy locally and from the grid
-energy_price_buy_local=1
-energy_price_buy_Mains=10
-
-# ASK PORTUGESE
-# ASK PORTUGESE
-# ASK PORTUGESE
-#the amount of energy lost from storage per time unit
-energy_decay=0
-#the amount of energy lost transporting energy from house to local storage
-efficiency_coeeficient=0
-
-#central energy capacity
-central_energy_capacity=250
-#central energy contributions per household
-central_energy_contributions=[0 for i in range(0,number_of_houses)]
-
-
 def simulate():
-    number_of_days=365
+    #tokens per house
+    tokens=[0 for i in range(0,number_of_houses+1)]
+
+    #central energy contributions per household and central energy production, stored in the final slot
+    central_energy_contributions=[0 for i in range(0,number_of_houses+1)]
+    central_energy_capacity=250
+    # ASK PORTUGESE
+    # ASK PORTUGESE
+    # ASK PORTUGESE
+    #the amount of energy lost transporting energy from house to local storage
+    # efficiency_coeeficient=0
+    #the amount of energy lost from storage per time unit
+    energy_decay_multiplier=0
+
+    #pct of sun power converted to energy
+    solar_panel_efficiency=0.9
+
+    # in kWhs
+    # #this depends on number of batteries
+    # # set to 0, but ask PORTUGESE
+    house_max_storage=0
+    current_household_storage=[0 for i in range(0,number_of_houses)]
+
+    average_energy_usage_per_house=4000
+    average_solar_panels_per_house=24
+    #number of central solar panels, double the total solar panels in the system
+    effective_central_solar_panels=average_solar_panels_per_house*number_of_houses*solar_panel_efficiency
+
+    # wind turbine variables 
+    # # rooftop turbines have an output of 400W to 1kW  
+    # # $100,000 produces approx 14kW, according to link in shared doc
+    # expected annual wind production matches expected usage of normal houses
+    annual_central_wind_energy_production=number_of_houses*average_energy_usage_per_house
+    average_hourly_central_wind_production=annual_central_wind_energy_production/(365*time_slots_per_day)
+
+    #the prices to buy energy locally and from the grid
+    energy_price_local=1
+    energy_price_external_grid=10
+
+    base_hourly_energy_usage, effective_solar_panels_per_house,max_storage_per_house=generate_houses_for_simulation(average_energy_usage_per_house, average_solar_panels_per_house,solar_panel_efficiency,house_max_storage, 0,1,0,1)
+    current_household_storage=[0 for i in range(0,number_of_houses)]
+    #needed to ensure fair access to local storage
+    priority_modifier=0
     for t in range(0, number_of_days*time_slots_per_day):
+        priority_modifier=priority_modifier+1
         if t%time_slots_per_day==0:
             get_daylight_hours(1+(int(t/24)%365))
+        central_energy_contributions=simulate_central_production(t,central_energy_capacity,central_energy_contributions,effective_central_solar_panels,average_hourly_central_wind_production)
         for house in range(0,number_of_houses):
-            usage=get_usage(house, t)
-            production=get_production(house,t)
-            house_simulation_1_time_unit(house,production,usage)
-    return
+            # rotate priority based on priority modifier
+            adjusted_house=(house+priority_modifier)%number_of_houses
+            usage=get_usage(adjusted_house, t,base_hourly_energy_usage)
+            production=get_house_production(adjusted_house,t,effective_solar_panels_per_house)
+            current_household_storage, tokens, central_energy_contributions,energy_price_local=house_simulation_1_time_unit(adjusted_house,production,usage,tokens,current_household_storage,central_energy_capacity,central_energy_contributions,energy_price_local,energy_price_external_grid,max_storage_per_house)
+        central_energy_contributions,current_household_storage=decay_storage(central_energy_contributions,current_household_storage,max_storage_per_house,energy_decay_multiplier,central_energy_capacity)
     
+    print("tokens: ",tokens)
+    print("Current storage:",current_household_storage )
+    print("central storage contributions", central_energy_contributions )
+
+    return
+
+def generate_houses_for_simulation(average_energy_usage_per_house, average_solar_panels_per_house,solar_panel_efficiency, house_max_storage,num_greedy_houses,greedy_multiplier,num_lazy_houses,lazy_multiplier): 
+    annual_energy_usages=[average_energy_usage_per_house for i in range(0,number_of_houses)]
+
+    #off-peak hourly usages
+    base_hourly_energy_usage=[i/(365*(24+(peak_usage_multiplier-1)*len(peak_usage_hours))) for i in annual_energy_usages]
+    # number of panels times efficiency
+    effective_solar_panels_per_house=[average_solar_panels_per_house*solar_panel_efficiency for i in range(0,number_of_houses)]
+    
+    max_storage_per_house=[house_max_storage for i in range(0,number_of_houses)]
+
+    #greedy houses are first in the list
+    for i in range(0,num_greedy_houses):
+        annual_energy_usages[i]=annual_energy_usages[i]*greedy_multiplier
+    #lazy houses are last in the list
+    for i in range(1,num_lazy_houses+1):
+        effective_solar_panels_per_house[number_of_houses-i]=solar_panels_per_house[number_of_houses-i]*lazy_multiplier
+    return base_hourly_energy_usage, effective_solar_panels_per_house, max_storage_per_house
+
+def decay_storage(central_energy_contributions,current_household_storage,max_storage_per_house,energy_decay_multiplier,central_energy_capacity):
+    if sum(central_energy_contributions)>(central_energy_capacity*energy_decay_multiplier):
+        pct_to_delete=(central_energy_capacity*energy_decay_multiplier)/sum(central_energy_contributions)
+        for i in range(0,number_of_houses+1):
+            central_energy_contributions[i]=central_energy_contributions[i]*pct_to_delete
+    else:
+        central_energy_contributions=[0 for i in range(0,number_of_houses+1)]
+
+    current_household_storage=[max(current_household_storage[i]-(max_storage_per_house[i]*energy_decay_multiplier),0) for i in range(0,number_of_houses)]
+    return central_energy_contributions, current_household_storage
 
 def get_daylight_hours(day):
     y=math.radians(23.44*math.sin(math.radians(360*(day+284)/365)))
@@ -95,34 +140,48 @@ def discount_sun_strength(daylight_hours):
     for i in range(0,time_slots_per_day):
         sunlight[i]=sunlight[i]*discount1*discount2
 
-
 def get_max_daylight_hours():
     day=172
     y=math.radians(23.44*math.sin(math.radians(360*(day+284)/365)))
     x=-math.tan(math.radians(latitiude))*math.tan(y)
     return abs(2*(1/15)*math.degrees(math.acos(x)))
 
-
-def get_usage(house_number, time):
+def get_usage(house_number, time, base_hourly_energy_usage):
     hour=time%24
     usage=base_hourly_energy_usage[house_number]
     if hour in peak_usage_hours:
         return usage*peak_usage_multiplier
     return usage
 
-def get_production(house_number, time):
+def get_house_production(house_number, time, effective_solar_panels_per_house):
     hour=time%24
-    production=sunlight[hour]*solar_panel_efficiency*solar_panels_per_house[house_number]*kilowatts_per_solar_panel
+    production=0
+    # add sunlight production
+    production=sunlight[hour]*effective_solar_panels_per_house[house_number]*kilowatts_per_solar_panel
     return production
 
+def simulate_central_production(time, central_energy_capacity,central_energy_contributions, effective_number_of_central_solar_panels, average_hourly_central_wind_production):
+    hour=time%24
+    production=0
+    # add sunlight production
+    production=production+sunlight[hour]*effective_number_of_central_solar_panels*kilowatts_per_solar_panel
+    # add wind production
+    production=production+average_hourly_central_wind_production
+    available_central_capacity=central_energy_capacity-sum(central_energy_contributions)
+    if available_central_capacity >0:
+        central_energy_contributions[number_of_houses]=central_energy_contributions[number_of_houses]+min(production,available_central_capacity)
+    # print(central_energy_contributions)
+    return central_energy_contributions
+
 #simulate a house for a particular time period
-def house_simulation_1_time_unit(house_number,production,usage,):
+def house_simulation_1_time_unit(house_number,production,usage,tokens,current_household_storage,central_energy_capacity,central_energy_contributions,energy_price_local,energy_price_external_grid,max_storage_per_house):
     net_usage=usage-production
     #usage is greater than production for this time period
     if net_usage>0:
         #need to buy energy
         if net_usage>current_household_storage[house_number]:
-            tokens[house_number]=tokens[house_number]-market_buy(net_usage,house_number)
+            tokens, central_energy_contributions,energy_price_local=market_buy(net_usage,house_number,tokens, central_energy_contributions,energy_price_local,energy_price_external_grid)
+
             current_household_storage[house_number]=0
         #house has enough energy
         else:
@@ -133,19 +192,20 @@ def house_simulation_1_time_unit(house_number,production,usage,):
         contribution_amount=0
         # there is capacity to add to central storage 
         if available_central_capacity>0:
+            
             contribution_amount=min(-net_usage,available_central_capacity)
             #add contribution amount to central storage
-            market_sell(contribution_amount, house_number)
+            central_energy_contributions,energy_price_local=market_sell(contribution_amount, house_number, central_energy_contributions,energy_price_local)
         #add remaining energy to house storage
         current_household_storage[house_number]=min(current_household_storage[house_number]+(-net_usage-contribution_amount),max_storage_per_house[house_number])
-
+    return current_household_storage, tokens, central_energy_contributions,energy_price_local
 
 #the market buy and sell prices will depend on several factors
 #1. where is the energy coming from
 #2. current demand(time of day?)/supply(stored energy, etc.)
 #3. House_specific discounts/fees
 
-def market_buy(energy_to_buy,house_number):
+def market_buy(energy_to_buy,house_number,tokens, central_energy_contributions,energy_price_local,energy_price_external_grid):
     #stores the total community storage 
     local_storage_total=sum(central_energy_contributions)
     #the pct of local storage to be bought, initialize to 1 
@@ -166,30 +226,31 @@ def market_buy(energy_to_buy,house_number):
     # house needs to buy from mains
     if energy_to_buy>local_storage_total:
         #add the cost of buying the additional energy from mains
-        cost+=(energy_to_buy-local_storage_total)*energy_price_buy_Mains
+        cost+=(energy_to_buy-local_storage_total)*energy_price_external_grid
         energy_to_buy-=local_storage_total
     else:
         # if enough local energy, update the pct_to_buy
         pct_to_buy=energy_to_buy/local_storage_total
     
     # add the cost of buying local energy
-    cost=cost+energy_to_buy*energy_price_buy_local
+    cost=cost+energy_to_buy*energy_price_local
+    tokens[house_number]=tokens[house_number]-cost
     #discount the contributions of each house to local storage
-    for i in range(0,number_of_houses):
+    for i in range(0,number_of_houses+1):
         #pay houses who contributed to energy being bought
-        tokens[house_number]+=central_energy_contributions[i]*pct_to_buy*energy_price_buy_local
+        tokens[house_number]+=central_energy_contributions[i]*pct_to_buy*energy_price_local
         #remove that energy from central supply
         central_energy_contributions[i]=central_energy_contributions[i]*(1-pct_to_buy)
     
-    return cost
+    return tokens, central_energy_contributions,energy_price_local
 
-def market_sell(energy_to_sell, house_number):
+def market_sell(energy_to_sell, house_number,central_energy_contributions,energy_price_local):
     #add the energy to the local grid
-    central_energy_contributions[house_number]=central_energy_contributions[house_number]+(energy_to_sell*(1-efficiency_coeeficient))
-    return
+    #checks for contribution amount are done in house_simulation_1_time_unit() function
+    central_energy_contributions[house_number]=central_energy_contributions[house_number]+(energy_to_sell)
+    return central_energy_contributions, energy_price_local
 
 max_daylight_hours=get_max_daylight_hours()
-simulate() 
-print("tokens: ",tokens)
-print("Current storage:",current_household_storage )
-print( "central storage contributions", central_energy_contributions )
+for i in range(0,number_of_simulations):
+    simulate() 
+
