@@ -9,6 +9,8 @@ contract System {
     }
 
     struct Settlement{
+        address who;
+
         // these two variables are used by users to verify
         // data that auctioneer publishes
 
@@ -25,13 +27,13 @@ contract System {
     Player public auctioneer;
     uint num_people;
 
-    // a mapping of time slots to demand and supply
+    // a mapping of time slots to net usage for each user
     mapping(uint256 => mapping(address => uint256)) public TS_net_usage_encrypted;
     mapping(uint256 => uint256) public TS_net_usage_decrypted;
     mapping(uint256 => uint256) public settlement_price;
     
     Player[] public users;
-    mapping (address => uint256) public user_net_usage_encrypted;
+    mapping (address => uint256) public user_net_tokens_encrypted;
     // can we use an extra array for "greenness"?
     // might not be necessary
     // mapping (uint => uint256) public user_net_green_tokens_encrypted;
@@ -71,23 +73,26 @@ contract System {
 
         //may need to add the modulus to netUsage if it is negative
         require(auctioneer._publicKey.encrypt(netUsage, usageRandomness)==productOfCiphertexts, "This is not a valid reveal");
-        
+        TS_net_usage_decrypted[time_slot]=netUsage;
+
         //store the price for later
         settlement_price[time_slot]=price;
-
     }
-
-
 
     function auctioneerRevealSettlements(uint256 time_slot, uint256 settlementRandomness, Settlement[] memory userSettlements) public {
         uint256 productOfCiphertexts=1;
         require(TS_net_usage_decrypted[time_slot]==0, "This time slot is already finished");
         for (uint i = 0; i < num_people; i++) {
-            if (TS_net_usage_encrypted[time_slot][users[i]._address]>0){
-                // this is because of the homomorphic property
-                productOfCiphertexts=productOfCiphertexts*TS_net_usage_encrypted[time_slot][users[i]._address];
-            }
+            // this is because of the homomorphic property
+            productOfCiphertexts=productOfCiphertexts*userSettlements[i].auctioneerEncryptedNetTokens;
+            
+            // preemptively updated each users net tokens
+            // bad practice normally 
+            user_net_tokens_encrypted[userSettlements[i].who]*=userSettlements[i].auctioneerEncryptedNetTokens;
         }
+        // all of the auctioneers individual encryptions should match total usage times price
+            
+        require(auctioneer._publicKey.encrypt(TS_net_usage_decrypted[time_slot]*settlement_price[time_slot],settlementRandomness)==productOfCiphertexts, "This is not a valid reveal");
     
     }
 
