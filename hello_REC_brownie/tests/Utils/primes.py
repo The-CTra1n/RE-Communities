@@ -1,5 +1,4 @@
 import random
-import sys
 
 def ipow(a, b, n):
     """calculates (a**b) % n via binary exponentiation, yielding itermediate

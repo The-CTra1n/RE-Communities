@@ -1,5 +1,3 @@
-import pytest
-from brownie import Wei, reverts, chain, accounts
 
 import math
 from Utils.paillier import *
@@ -8,7 +6,7 @@ from Utils.paillier import *
 
 def test_token_swap(accounts,Paillier, System):
     initial_supply = 100000000
-    n_length=128
+    n_length=64
     priv, pub = generate_keypair(n_length)
     n,g,l,mu=get_Paillier_params(priv,pub)
     print(n,g,l,mu)
@@ -21,15 +19,13 @@ def test_token_swap(accounts,Paillier, System):
     print(decrypt(priv,pub,encrypt(pub,12345)))
     auctioneer=accounts[0]
 
-    accounts[0].transfer(accounts[1], "10 ether", gas_price=0)
 
-    
 
     enc_scheme=auctioneer.deploy(Paillier,n,g)
-    
     re_system = auctioneer.deploy(System,auctioneer,enc_scheme)
-
     re_system.addPlayer(accounts[1], enc_scheme, {"from":accounts[1]})
+
+    print(enc_scheme.decrypt(enc_scheme.encrypt(12345,r),l,mu))
 
 def get_Paillier_params(priv, pub):
     n=pub.n

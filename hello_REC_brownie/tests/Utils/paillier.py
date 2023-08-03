@@ -79,7 +79,7 @@ def e_add_const(pub, a, n):
     return a * modpow(pub.g, n, pub.n_sq) % pub.n_sq
 
 def e_mul_const(pub, a, n):
-    """Multiplies an ancrypted integer by a constant"""
+    """Multiplies an encrypted integer by a constant"""
     return modpow(a, n, pub.n_sq)
 
 def decrypt(priv, pub, cipher):
