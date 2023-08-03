@@ -56,8 +56,8 @@ class PublicKey(object):
         return '<PublicKey: %s>' % self.n
 
 def generate_keypair(bits):
-    p = primes.generate_prime(bits / 2)
-    q = primes.generate_prime(bits / 2)
+    p = primes.generate_prime(int(bits / 2))
+    q = primes.generate_prime(int(bits / 2))
     n = p * q
     return PrivateKey(p, q, n), PublicKey(n)
 

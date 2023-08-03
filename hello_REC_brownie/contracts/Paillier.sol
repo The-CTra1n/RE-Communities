@@ -12,9 +12,7 @@ contract Paillier {
 
     function encrypt(uint256 plaintext, uint256 randomness) external view returns (uint256) {
         require(plaintext < n, "Plaintext is too large");
-        
         uint256 ciphertext = (modPow(g, plaintext, n ** 2) * modPow(randomness, n, n ** 2)) % (n ** 2);
-        
         return ciphertext;
     }
 

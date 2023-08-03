@@ -1,7 +1,6 @@
 import pytest
 from brownie import Wei, reverts, chain, accounts
 
-from Crypto.Util import number
 import math
 from Utils.paillier import *
 
@@ -9,9 +8,17 @@ from Utils.paillier import *
 
 def test_token_swap(accounts,Paillier, System):
     initial_supply = 100000000
-    n_length=16
-    n,g,l,mu=get_Paillier_params(n_length)
-
+    n_length=128
+    priv, pub = generate_keypair(n_length)
+    n,g,l,mu=get_Paillier_params(priv,pub)
+    print(n,g,l,mu)
+    while True:
+        r = primes.generate_prime(round(math.log(n, 2)))
+        if r > 0 and r < n:
+            break
+    print(paillier_decrypt(paillier_encrypt(12345,r,n,g),n,l,mu))
+    
+    print(decrypt(priv,pub,encrypt(pub,12345)))
     auctioneer=accounts[0]
 
     accounts[0].transfer(accounts[1], "10 ether", gas_price=0)
@@ -24,9 +31,7 @@ def test_token_swap(accounts,Paillier, System):
 
     re_system.addPlayer(accounts[1], enc_scheme, {"from":accounts[1]})
 
-
-def get_Paillier_params(n_length):
-    priv, pub = generate_keypair(n_length)
+def get_Paillier_params(priv, pub):
     n=pub.n
     g=pub.g
     l=priv.l
@@ -37,6 +42,6 @@ def paillier_encrypt(plaintext, randomness, n, g):
     return ((pow(g,plaintext, n**2)*pow(randomness, n, n**2)))%(n**2)
 
 def paillier_decrypt(ciphertext, n, l, mu):
-    c=pow(ciphertext,l,n**2)
-    L=((c-1)/n)-((c-1)%n)
-    return((L*mu)%n)
+    x=pow(ciphertext,l,n**2)-1
+    plain=((x // n) * mu) % n
+    return plain

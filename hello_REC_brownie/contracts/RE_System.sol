@@ -70,11 +70,9 @@ contract System {
                 productOfCiphertexts=productOfCiphertexts*TS_net_usage_encrypted[time_slot][users[i]._address];
             }
         }
-
         //may need to add the modulus to netUsage if it is negative
         require(auctioneer._publicKey.encrypt(netUsage, usageRandomness)==productOfCiphertexts, "This is not a valid reveal");
         TS_net_usage_decrypted[time_slot]=netUsage;
-
         //store the price for later
         settlement_price[time_slot]=price;
     }
