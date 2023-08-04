@@ -23,9 +23,6 @@ contract Paillier {
         return (L * mu) % n;
     }
 
-
-    
-    
     function ModPow(uint256 base, uint256 exponent, uint256 modulus) internal view returns (uint256 xx) {
         assembly {
             let freemem := mload(0x40)

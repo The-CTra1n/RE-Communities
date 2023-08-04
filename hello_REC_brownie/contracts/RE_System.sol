@@ -29,6 +29,11 @@ contract System {
 
     // a mapping of time slots to net usage for each user
     mapping(uint256 => mapping(address => uint256)) public TS_net_usage_encrypted;
+    // these encryptions are of the randomness used in the net usage encryptions
+    // are used to prove the auctioneer is well behaved
+    // can probably be done with inverses 
+    mapping(uint256 => mapping(address => uint256)) public TS_encryption_randomness;
+    
     mapping(uint256 => uint256) public TS_net_usage_decrypted;
     mapping(uint256 => uint256) public settlement_price;
     
@@ -53,9 +58,10 @@ contract System {
         num_people++;
     }
 
-    function userRevealNetUsage(uint256 time_slot,uint256 encryptedUsage) public {
+    function userRevealNetUsage(uint256 time_slot,uint256 encryptedUsage, uint256 encryptedRandomness) public {
         require(encryptedUsage>0, "0 values not allowed");
         TS_net_usage_encrypted[time_slot][msg.sender]=encryptedUsage;
+        TS_encryption_randomness[time_slot][msg.sender]=encryptedRandomness;
     }
 
 
@@ -64,10 +70,11 @@ contract System {
     function auctioneerRevealNetUsage(uint256 time_slot, uint256 netUsage, uint256 usageRandomness, uint256 price) public {
         uint256 productOfCiphertexts=1;
         require(TS_net_usage_decrypted[time_slot]==0, "This time slot is already finished");
+        uint256 modulus=auctioneer._publicKey.n();
         for (uint i = 0; i < num_people; i++) {
             if (TS_net_usage_encrypted[time_slot][users[i]._address]>0){
                 // this is because of the homomorphic property
-                productOfCiphertexts=productOfCiphertexts*TS_net_usage_encrypted[time_slot][users[i]._address];
+                productOfCiphertexts=(productOfCiphertexts*TS_net_usage_encrypted[time_slot][users[i]._address])%(modulus**2);
             }
         }
         //may need to add the modulus to netUsage if it is negative
